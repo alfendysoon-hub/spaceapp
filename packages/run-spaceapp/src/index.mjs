@@ -905,7 +905,11 @@ export function composeCommand(action, root, options = {}) {
   if (!selected) {
     throw new Error(`Unsupported Compose action "${action}".`);
   }
-  return { command: "docker", args: [...base, ...selected] };
+  const engine = options.engine ?? "docker";
+  if (engine !== "docker" && engine !== "podman") {
+    throw new Error("Unsupported container engine: expected docker or podman.");
+  }
+  return { command: engine, args: [...base, ...selected] };
 }
 
 export function composeProjectName(root) {
