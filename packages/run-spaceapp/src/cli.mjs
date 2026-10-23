@@ -2424,11 +2424,14 @@ async function doctor({
     ...resourceChecks.filter((check) => !storagePlan || check.name !== "Free disk"),
     ...(storagePlan ? storageChecks(storagePlan, detectedResources) : [])
   ];
+  const installed = await loadConfig(root).catch(() => null);
+  const engine = installed?.engine === "podman" ? "podman" : "docker";
+  const label = engine === "podman" ? "Podman" : "Docker";
   const dockerResults = [];
   for (const probe of [
-    { name: "Docker CLI", command: "docker", args: ["--version"] },
-    { name: "Docker Compose", command: "docker", args: ["compose", "version"] },
-    { name: "Docker Engine", command: "docker", args: ["info"] }
+    { name: `${label} CLI`, command: engine, args: ["--version"] },
+    { name: `${label} Compose`, command: engine, args: ["compose", "version"] },
+    { name: `${label} Engine`, command: engine, args: ["info"] }
   ]) {
     const code = dockerReady
       ? 0
@@ -2451,7 +2454,7 @@ async function doctor({
     detail: dockerCompose.code === 0
       ? "available"
       : dockerCli.code !== 0
-        ? "not available because Docker CLI is missing"
+        ? `${label} CLI is missing`
         : `plugin unavailable (exit ${dockerCompose.code})`
   });
   checks.push({
@@ -2461,12 +2464,14 @@ async function doctor({
       ? "available"
       : dockerCli.code === 0
         ? "installed but not running or inaccessible"
-        : "not reachable because Docker CLI is missing"
+        : "not reachable because ${label} CLI is missing"
   });
   for (const check of checks) {
     (check.ok ? stdout : stderr).write(`${check.ok ? "PASS" : "FAIL"} ${check.name}: ${check.detail}\n`);
   }
-  if (dockerCli.code !== 0 || dockerCompose.code !== 0) {
+  if (engine === "podman" && (dockerCli.code !== 0 || dockerCompose.code !== 0 || dockerEngine.code !== 0)) {
+    stderr.write("Podman 5+ with a working Compose provider is required; on macOS start podman machine.\n");
+  } else if (dockerCli.code !== 0 || dockerCompose.code !== 0) {
     stderr.write(`${dockerInstallHelp(platform)}\n`);
   } else if (dockerEngine.code !== 0) {
     stderr.write(`${dockerEngineHelp(platform)}\n`);
