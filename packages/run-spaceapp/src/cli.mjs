@@ -50,6 +50,7 @@ import {
 import { inspectStoragePlan, storageChecks } from "./storage.mjs";
 import {
   ensureDockerAvailable,
+  ensurePodmanAvailable,
   prepareDockerCliPath,
   windowsPowerShellArgs
 } from "./prerequisites.mjs";
@@ -743,8 +744,10 @@ async function installCommand(args, {
     return failInstall(doctorCode);
   }
 
-  stage = "docker";
-  const prerequisiteResult = await ensureDocker({
+  stage = "container-engine";
+  const prerequisiteResult = result.config.engine === "podman"
+    ? await ensurePodmanAvailable({platform,execute})
+    : await ensureDocker({
     platform,
     arch,
     env,
@@ -1297,7 +1300,9 @@ async function repairRuntime({ root, config, platform, stdin, stdout, stderr, ex
     "Repair configuration and recreate the current runtime without deleting data.",
     ...plan.actions.map((action) => action.detail)
   ])) return 1;
-  const prerequisites = await ensureDocker({platform, arch, env, stdin, stdout, stderr, execute, sleep: sleep || wait,
+  const prerequisites = repaired.engine === "podman"
+    ? await ensurePodmanAvailable({platform,execute})
+    : await ensureDocker({platform, arch, env, stdin, stdout, stderr, execute, sleep: sleep || wait,
     installArgs: {root,requestedProfile:repaired.profile,requestedAccessMode:repaired.accessMode,noOpen:true,autoConfirm:true}});
   if(prerequisites.reexecuted || prerequisites.code !== 0) return prerequisites.code;
   config = repaired;
